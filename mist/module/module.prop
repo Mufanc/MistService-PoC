@@ -1,0 +1,6 @@
+id=mist
+name=Mist Service
+version=v1.0.0
+versionCode=1
+author=Mufanc
+description=Allows hiding of specific binder services from servicemanager

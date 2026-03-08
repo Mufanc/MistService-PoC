@@ -1,0 +1,3 @@
+allow servicemanager shell_data_file dir search
+allow servicemanager servicemanager process execmem
+allow servicemanager proc file read

@@ -1,0 +1,20 @@
+[package]
+name = "mist"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "mist"
+crate-type = ["cdylib"]
+
+[dependencies]
+android_logger = "0.15"
+anyhow = "1"
+ctor = "0.6"
+env_logger = "0.11"
+log = "0.4"
+nix = { version = "0.31", features = ["ptrace", "signal", "uio"] }
+paste = "1"
+procfs = "0.18"
+r3solvr = { git = "https://github.com/Mufanc/r3solvr" }
+wisp = { git = "https://github.com/Mufanc/wisp" }

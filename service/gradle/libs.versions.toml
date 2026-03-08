@@ -1,0 +1,23 @@
+[versions]
+agp = "9.0.1"
+kotlin = "2.3.10"
+ksp = "2.3.6"
+core-ktx = "1.17.0"
+hiddenapi-refine = "4.4.0"
+aproc = "2.0.0"
+joor = "0.9.15"
+
+[libraries]
+core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
+hiddenapi-processor = { module = "dev.rikka.tools.refine:annotation-processor", version.ref = "hiddenapi-refine" }
+hiddenapi-annotation = { module = "dev.rikka.tools.refine:annotation", version.ref = "hiddenapi-refine" }
+hiddenapi-runtime = { module = "dev.rikka.tools.refine:runtime", version.ref = "hiddenapi-refine" }
+joor = { module = "org.jooq:joor", version.ref = "joor" }
+
+[plugins]
+agp-app = { id = "com.android.application", version.ref = "agp" }
+agp-lib = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+hiddenapi-refine = { id = "dev.rikka.tools.refine", version.ref = "hiddenapi-refine" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+aproc = { id = "xyz.mufanc.aproc", version.ref = "aproc" }
