@@ -14,8 +14,7 @@ lite-inject: build-debug
     adb shell chown root /data/local/tmp/libmist.so
     adb shell chgrp root /data/local/tmp/libmist.so
     adb shell chmod 644 /data/local/tmp/libmist.so
-    adb shell chcon u:object_r:system_lib_file:s0 /data/local/tmp/libmist.so
-    adb shell "RUST_LOG=debug /data/local/tmp/mist /data/local/tmp/libmist.so"
+    adb shell "RUST_LOG=debug RUST_BACKTRACE=1 /data/local/tmp/mist /data/local/tmp/libmist.so"
 
 debug-module: build-debug
     adb root
@@ -43,6 +42,10 @@ package-release: build-release
     rm target/module/bin/.keep
     cd target/module && zip -r ../module.zip .
     rm -rf target/module
+
+install-release-magisk: package-release
+    adb push target/module.zip /data/local/tmp
+    adb shell su -c magisk --install-module /data/local/tmp/module.zip
 
 clean:
     cargo clean

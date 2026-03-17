@@ -4,9 +4,12 @@ use log::LevelFilter;
 use nix::unistd::Pid;
 use std::env;
 
-mod constants;
+mod ext;
 mod inject;
 mod properties;
+mod ptrace;
+mod resolver;
+mod selinux;
 
 fn main() -> anyhow::Result<()> {
     if env::var("MAGISK").is_ok() {
