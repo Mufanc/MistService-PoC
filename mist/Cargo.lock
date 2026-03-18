@@ -228,6 +228,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52560adf09603e58c9a7ee1fe1dcb95a16927b17c127f0ac02d6e768a0e25bc1"
 
 [[package]]
+name = "daemon"
+version = "0.1.0"
+dependencies = [
+ "android_logger",
+ "anyhow",
+ "env_logger",
+ "log",
+ "memfd",
+ "nix",
+ "once_map",
+ "procfs",
+ "r3solvr",
+ "scopeguard",
+ "syscalls",
+]
+
+[[package]]
 name = "dtor"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -441,6 +458,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e136bfa874086c78f34d6eba98c423fefe464ce57f38164d16893ba8ed358e70"
 
 [[package]]
+name = "library"
+version = "0.1.0"
+dependencies = [
+ "android_logger",
+ "anyhow",
+ "ctor",
+ "log",
+ "nix",
+ "procfs",
+ "r3solvr",
+ "wisp",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -524,26 +555,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mist"
-version = "0.1.0"
-dependencies = [
- "android_logger",
- "anyhow",
- "ctor",
- "env_logger",
- "log",
- "memfd",
- "nix",
- "once_map",
- "paste",
- "procfs",
- "r3solvr",
- "scopeguard",
- "syscalls",
- "wisp",
-]
-
-[[package]]
 name = "nix"
 version = "0.31.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -620,12 +631,6 @@ dependencies = [
  "smallvec",
  "windows-link",
 ]
-
-[[package]]
-name = "paste"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "portable-atomic"

@@ -1,0 +1,21 @@
+[package]
+name = "daemon"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "mist"
+path = "src/main.rs"
+
+[dependencies]
+android_logger = { workspace = true }
+anyhow = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+memfd = { workspace = true }
+nix = { workspace = true, features = ["feature", "ptrace", "signal", "socket", "uio"] }
+once_map = { workspace = true }
+procfs = { workspace = true }
+r3solvr = { workspace = true }
+scopeguard = { workspace = true }
+syscalls = { workspace = true }

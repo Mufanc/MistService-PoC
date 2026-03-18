@@ -1,0 +1,18 @@
+[package]
+name = "library"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "mist"
+crate-type = ["cdylib"]
+
+[dependencies]
+android_logger = { workspace = true }
+anyhow = { workspace = true }
+ctor = { workspace = true }
+log = { workspace = true }
+nix = { workspace = true }
+procfs = { workspace = true }
+r3solvr = { workspace = true }
+wisp = { workspace = true }
