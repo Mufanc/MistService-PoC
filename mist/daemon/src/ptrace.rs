@@ -113,6 +113,11 @@ impl RemoteFd {
         self.leak = false;
         Ok(())
     }
+
+    pub fn forget(mut self) -> RawFd {
+        self.leak = false;
+        self.fd
+    }
 }
 
 impl AsRawFd for RemoteFd {
@@ -140,11 +145,6 @@ impl SocketConnection {
             local: local_socket,
             remote: remote_socket,
         }
-    }
-
-    pub fn close_for(self, tracee: &Tracee) -> anyhow::Result<()> {
-        self.remote.close_for(tracee)?;
-        Ok(())
     }
 }
 

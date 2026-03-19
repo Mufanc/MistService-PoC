@@ -4,21 +4,17 @@ use crate::ptrace::Tracee;
 use crate::selinux::fsetcon;
 use log::{debug, error, info};
 use memfd::{FileSeal, MemfdOptions};
-use nix::libc::{MADV_DONTNEED, RTLD_NOW, c_int, off64_t, size_t};
+use nix::libc::{RTLD_NOW, c_int, off64_t, size_t};
 use nix::sys::signal::Signal;
-use nix::unistd;
-use nix::unistd::{Pid, SysconfVar};
+use nix::unistd::Pid;
 use scopeguard::defer;
 use std::ffi::c_void;
 use std::fs::File;
 use std::io::{Seek, SeekFrom};
-use std::os::fd::{AsFd, AsRawFd};
+use std::os::fd::{AsFd, AsRawFd, FromRawFd, IntoRawFd};
 use std::path::Path;
-use std::sync::LazyLock;
 use std::{fs, io, ptr};
-
-pub static PAGE_SIZE: LazyLock<usize> =
-    LazyLock::new(|| unistd::sysconf(SysconfVar::PAGE_SIZE).unwrap().unwrap() as _);
+use uds::UnixSeqpacketConn;
 
 #[repr(C)]
 pub struct DlextInfo {
@@ -31,7 +27,11 @@ pub struct DlextInfo {
     pub library_namespace: *const c_void,
 }
 
-pub unsafe fn ptrace_inject(pid: Pid, library: impl AsRef<Path>) -> anyhow::Result<()> {
+pub unsafe fn ptrace_inject(
+    pid: Pid,
+    library: impl AsRef<Path>,
+    idmap: File,
+) -> anyhow::Result<()> {
     info!("injecting {:?} into {pid}", library.as_ref().display());
 
     let library_local = {
@@ -87,22 +87,33 @@ pub unsafe fn ptrace_inject(pid: Pid, library: impl AsRef<Path>) -> anyhow::Resu
     tracee.poke_data(tracee.stack, info.as_bytes())?;
     tracee.poke_data(library_name_address, c"libmist.so".as_bytes())?;
 
-    tracee.call_remote_func(
+    let handle = tracee.call_remote_func(
         tracee.resolve("libdl.so", "android_dlopen_ext")?,
         build_args!(library_name_address, RTLD_NOW, tracee.stack),
     )?;
 
-    defer! {
-        let _ = connection.close_for(&tracee);
-        let _ = library_remote.close_for(&tracee);
-    }
+    tracee.poke_data(tracee.stack, c"init_mist".as_bytes())?;
 
-    let res = tracee.call_remote_func(
-        tracee.resolve("libc.so", "madvise")?,
-        build_args!(tracee.stack, *PAGE_SIZE, MADV_DONTNEED),
+    let address = tracee.call_remote_func(
+        tracee.resolve("libdl.so", "dlsym")?,
+        build_args!(handle, tracee.stack),
     )?;
 
-    debug!("madvise = {res}");
+    let seqpacket = unsafe { UnixSeqpacketConn::from_raw_fd(connection.local.into_raw_fd()) };
+
+    seqpacket.send_fds(&[], &[idmap.as_raw_fd()])?;
+
+    tracee.call_remote_func(
+        address as _,
+        build_args!(connection.remote.forget(), library_remote.forget()),
+    )?;
+
+    // let res = tracee.call_remote_func(
+    //     tracee.resolve("libc.so", "madvise")?,
+    //     build_args!(tracee.stack, *PAGE_SIZE, MADV_DONTNEED),
+    // )?;
+    //
+    // debug!("madvise = {res}");
 
     let mut found = false;
 
