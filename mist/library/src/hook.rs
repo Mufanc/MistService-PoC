@@ -1,10 +1,11 @@
 use crate::constants::{DUMP_FLAG_PRIORITY_HIDE, SERVICE_MANAGER_PATH};
+use crate::cxx_string::CxxStr;
 use android_logger::Config;
 use anyhow::{Context, bail};
 use core::slice;
-use log::{LevelFilter, error, info};
+use log::{LevelFilter, debug, error};
 use memmap2::Mmap;
-use nix::libc::uid_t;
+use nix::libc::{c_char, uid_t};
 use procfs::process::{MMapPath, MemoryMaps, Process};
 use r3solvr::{BasicResolver, Query, SymbolResolver};
 use std::ffi::{c_long, c_void};
@@ -14,7 +15,7 @@ use std::path::PathBuf;
 use std::ptr;
 use std::sync::OnceLock;
 use uds::UnixSeqpacketConn;
-use wisp::Wisp;
+use wisp::{Wisp, orig_fn};
 
 static IPC_THREAD_STATE_SELF_OR_NULL: OnceLock<extern "C" fn() -> *const c_void> = OnceLock::new();
 static IPC_THREAD_STATE_GET_CALLING_UID: OnceLock<extern "C" fn(handle: *const c_void) -> uid_t> =
@@ -61,7 +62,7 @@ impl LibraryFinder {
     }
 }
 
-fn query(symbol: &'static str) -> Query<'static> {
+fn make_query(symbol: &'static str) -> Query<'static> {
     Query::new(symbol).with_debugdata(true).with_prefix(true)
 }
 
@@ -84,33 +85,75 @@ fn can_access(uid: uid_t) -> bool {
     }
 }
 
+fn get_calling_uid() -> Option<uid_t> {
+    if let (Some(ipc_thread_state_self_or_null), Some(ipc_thread_state_get_calling_uid)) = (
+        IPC_THREAD_STATE_SELF_OR_NULL.get(),
+        IPC_THREAD_STATE_GET_CALLING_UID.get(),
+    ) {
+        let ipc_thread_state = ipc_thread_state_self_or_null();
+
+        if !ipc_thread_state.is_null() {
+            return Some(ipc_thread_state_get_calling_uid(ipc_thread_state));
+        }
+    }
+
+    None
+}
+
 extern "C" fn intercept_list_service(args: *mut c_long) {
     let args = unsafe { slice::from_raw_parts_mut(args, 3) };
-
     let dump_priority = args[1] as i32;
 
-    info!("listServices: dump priority = {dump_priority:0>32b}");
+    #[cfg(debug_assertions)]
+    debug!("ServiceManager::listServices: dump priority = {dump_priority:0>32b}");
 
     if dump_priority & DUMP_FLAG_PRIORITY_HIDE != 0 {
         let mut keep = false;
 
-        if let (Some(ipc_thread_state_self_or_null), Some(ipc_thread_state_get_calling_uid)) = (
-            IPC_THREAD_STATE_SELF_OR_NULL.get(),
-            IPC_THREAD_STATE_GET_CALLING_UID.get(),
-        ) {
-            let ipc_thread_state = ipc_thread_state_self_or_null();
-
-            if !ipc_thread_state.is_null()
-                && can_access(ipc_thread_state_get_calling_uid(ipc_thread_state))
-            {
-                keep = true;
-            }
+        if let Some(uid) = get_calling_uid()
+            && can_access(uid)
+        {
+            debug!("ServiceManager::listServices: allow uid={uid}");
+            keep = true;
         }
 
         if !keep {
             args[1] = (dump_priority & !DUMP_FLAG_PRIORITY_HIDE) as _;
         }
     }
+}
+
+extern "C" fn hook_action_allowed_from_lookup(
+    this: *const c_void,
+    ctx: *const c_void,
+    name: *const c_void,
+    perm: *const c_char,
+) -> bool {
+    let orig_fn = orig_fn!();
+    let orig_fn: extern "C" fn(*const c_void, *const c_void, *const c_void, *const c_char) -> bool =
+        unsafe { mem::transmute(orig_fn) };
+
+    #[cfg(debug_assertions)]
+    debug!(
+        "Access::actionAllowedFromLookup: this = {this:p}, ctx = {ctx:p}, name = {name:?}, perm = {perm:p}"
+    );
+
+    if let Ok(name) = unsafe { CxxStr::from_ptr(name) } {
+        let name = name.to_str();
+
+        #[cfg(debug_assertions)]
+        debug!("Access::actionAllowedFromLookup: name = {name:?}");
+
+        if name.starts_with("mist/")
+            && let Some(uid) = get_calling_uid()
+            && can_access(uid)
+        {
+            debug!("Access::actionAllowedFromLookup: allow uid={uid}, name={name:?}");
+            return true;
+        }
+    }
+
+    orig_fn(this, ctx, name, perm)
 }
 
 fn run_catching(seqpacket_fd: RawFd, library_fd: RawFd) -> anyhow::Result<()> {
@@ -153,21 +196,47 @@ fn run_catching(seqpacket_fd: RawFd, library_fd: RawFd) -> anyhow::Result<()> {
         }
     }
 
-    let list_service_fn = {
-        let resolver = BasicResolver::from_file("/proc/self/exe")?;
-        resolver.lookup_symbol(query("_ZN7android14ServiceManager12listServicesE"))?
-    };
+    let resolver = BasicResolver::from_file("/proc/self/exe")?;
 
-    let stub = unsafe {
-        Wisp::intercept_fn(
-            executable_base.byte_add(list_service_fn.addr),
-            intercept_list_service,
-        )
-    };
+    {
+        let list_service_fn =
+            resolver.lookup_symbol(make_query("_ZN7android14ServiceManager12listServicesE"))?;
 
-    match stub {
-        Ok(stub) => mem::forget(stub),
-        Err(err) => bail!("failed to intercept `listServices`: {:?}", err),
+        let stub = unsafe {
+            Wisp::intercept_fn(
+                executable_base.byte_add(list_service_fn.addr),
+                intercept_list_service,
+            )
+        };
+
+        match stub {
+            Ok(stub) => mem::forget(stub),
+            Err(err) => bail!(
+                "failed to intercept `ServiceManager::listServices`: {:?}",
+                err
+            ),
+        }
+    }
+
+    {
+        let action_allowed_from_lookup_fn =
+            resolver.lookup_symbol(make_query("_ZN7android6Access23actionAllowedFromLookupE"))?;
+
+        let stub = unsafe {
+            Wisp::hook_fn(
+                executable_base.byte_add(action_allowed_from_lookup_fn.addr),
+                hook_action_allowed_from_lookup as _,
+                None,
+            )
+        };
+
+        match stub {
+            Ok(stub) => mem::forget(stub),
+            Err(err) => bail!(
+                "failed to hook `Access::actionAllowedFromLookup`: {:?}",
+                err
+            ),
+        }
     }
 
     Ok(())

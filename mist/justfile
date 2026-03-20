@@ -34,6 +34,15 @@ build-release:
         --release \
         --config target.aarch64-linux-android.linker=\"{{CC}}\"
 
+package-debug: build-debug
+    rm -rf target/module.zip || true
+    cp -R module target/module
+    cp target/aarch64-linux-android/debug/mist target/module/bin
+    cp target/aarch64-linux-android/debug/libmist.so target/module/bin
+    rm target/module/bin/.keep
+    cd target/module && zip -r ../module.zip .
+    rm -rf target/module
+
 package-release: build-release
     rm -rf target/module.zip || true
     cp -R module target/module
@@ -42,6 +51,10 @@ package-release: build-release
     rm target/module/bin/.keep
     cd target/module && zip -r ../module.zip .
     rm -rf target/module
+
+install-debug-magisk: package-debug
+    adb push target/module.zip /data/local/tmp
+    adb shell su -c magisk --install-module /data/local/tmp/module.zip
 
 install-release-magisk: package-release
     adb push target/module.zip /data/local/tmp

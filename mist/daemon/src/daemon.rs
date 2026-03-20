@@ -33,9 +33,9 @@ impl MistService {
     }
 }
 
-fn validate_id(id: i32) -> rsbinder::status::Result<usize> {
-    if (10000..20000).contains(&id) {
-        Ok((id - 10000) as usize)
+fn validate_uid(uid: i32) -> rsbinder::status::Result<usize> {
+    if (10000..20000).contains(&uid) {
+        Ok((uid - 10000) as usize)
     } else {
         Err(StatusCode::BadValue.into())
     }
@@ -83,7 +83,7 @@ impl IMistService for MistService {
     }
 
     fn idmapGet(&self, id: i32) -> rsbinder::status::Result<bool> {
-        let index = validate_id(id)?;
+        let index = validate_uid(id)?;
         let idmap = self.idmap.lock().unwrap();
         let byte = idmap[index >> 3];
 
@@ -91,7 +91,7 @@ impl IMistService for MistService {
     }
 
     fn idmapSet(&self, id: i32, value: bool) -> rsbinder::status::Result<()> {
-        let index = validate_id(id)?;
+        let index = validate_uid(id)?;
         let mut idmap = self.idmap.lock().unwrap();
         let byte_index = index >> 3;
         let bit_mask = 1u8 << (index & 7);
@@ -111,10 +111,12 @@ impl IMistService for MistService {
 
     fn idmapClear(&self) -> rsbinder::status::Result<()> {
         let mut idmap = self.idmap.lock().unwrap();
+
         idmap.fill(0);
         idmap
             .flush()
             .map_err(|_| Status::from(StatusCode::Unknown))?;
+
         Ok(())
     }
 }
