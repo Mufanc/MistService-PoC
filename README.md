@@ -131,28 +131,31 @@ rustup target add aarch64-linux-android
 
 ### 构建模块
 
+`variant` 参数默认为 `release`，可选 `debug`。
+
 ```bash
-# 构建 debug 版本
-just build-debug
+# 构建
+just build [debug|release]
 
-# 构建 release 版本
-just build-release
+# 打包 Magisk 模块
+just package [debug|release]
 
-# 打包 Magisk 模块（debug）
-just package-debug
-
-# 打包 Magisk 模块（release）
-just package-release
+# 构建并安装 Magisk 模块
+just install-magisk [debug|release]
 ```
 
 将 `target/module.zip` 通过 Magisk/KernelSU 刷入即可。
 
-### 快速测试（开发模式）
+### 构建产物路径
 
-```bash
-# 直接注入测试（无需刷模块）
-just lite-inject
-```
+构建完成后，产物位于：
+- `target/aarch64-linux-android/debug/` - Debug 构建产物
+- `target/aarch64-linux-android/release/` - Release 构建产物
+
+主要文件：
+- `mist` - 守护进程二进制
+- `libmist.so` - Hook 库
+- `mist-poc` - 测试工具
 
 ## 使用
 
