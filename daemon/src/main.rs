@@ -23,7 +23,7 @@ struct Cli {
 enum Commands {
     #[command(about = "Inject into servicemanager and start daemon (for internal use only)")]
     Inject {
-        #[arg(help = "Path to the trojan file")]
+        #[arg(help = "Path to the library file")]
         file: String,
     },
     #[command(about = "Manage idmap")]
