@@ -1,0 +1,20 @@
+[package]
+name = "trojan"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "mist"
+crate-type = ["cdylib"]
+
+[dependencies]
+android_logger = { workspace = true }
+anyhow = { workspace = true }
+mist_common = { path = "../common" }
+log = { workspace = true }
+memmap2 = { workspace = true }
+nix = { workspace = true }
+procfs = { workspace = true }
+r3solvr = { workspace = true }
+uds = { workspace = true }
+wisp = { workspace = true }

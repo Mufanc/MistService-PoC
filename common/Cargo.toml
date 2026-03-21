@@ -1,0 +1,8 @@
+[package]
+name = "mist_common"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+paste = { workspace = true }
+rsbinder = { workspace = true }

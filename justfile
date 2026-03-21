@@ -1,0 +1,66 @@
+#!/usr/bin/env just --justfile
+
+TARGET_SDK := "35"
+
+# https://developer.android.com/ndk/guides/other_build_systems#overview
+HOST_TAG := (if os() == "macos" { "darwin" } else { os() }) + "-x86_64"
+
+CC := env("ANDROID_NDK") / "toolchains/llvm/prebuilt" / HOST_TAG / "bin" / ("aarch64-linux-android" + TARGET_SDK + "-clang")
+
+lite-inject: build-debug
+    adb root
+    adb push target/aarch64-linux-android/debug/libmist.so /data/local/tmp
+    adb push target/aarch64-linux-android/debug/mist /data/local/tmp
+    adb shell chown root /data/local/tmp/libmist.so
+    adb shell chgrp root /data/local/tmp/libmist.so
+    adb shell chmod 644 /data/local/tmp/libmist.so
+    adb shell "RUST_LOG=debug RUST_BACKTRACE=1 /data/local/tmp/mist /data/local/tmp/libmist.so"
+
+debug-module: build-debug
+    adb root
+    adb shell rm -rf /data/adb/modules/mist
+    cp target/aarch64-linux-android/debug/libmist.so module/mist/bin
+    cp target/aarch64-linux-android/debug/mist module/mist/bin
+    adb push module/mist /data/adb/modules
+
+build-debug:
+    cargo build \
+        --target aarch64-linux-android \
+        --config target.aarch64-linux-android.linker=\"{{CC}}\"
+
+build-release:
+    cargo build \
+        --target aarch64-linux-android \
+        --release \
+        --config target.aarch64-linux-android.linker=\"{{CC}}\"
+
+package-debug: build-debug
+    rm -rf target/module.zip || true
+    cp -R module target/module
+    cp target/aarch64-linux-android/debug/mist target/module/bin
+    cp target/aarch64-linux-android/debug/libmist.so target/module/bin
+    rm target/module/bin/.keep
+    cd target/module && zip -r ../module.zip .
+    rm -rf target/module
+
+package-release: build-release
+    rm -rf target/module.zip || true
+    cp -R module target/module
+    cp target/aarch64-linux-android/release/mist target/module/bin
+    cp target/aarch64-linux-android/release/libmist.so target/module/bin
+    rm target/module/bin/.keep
+    cd target/module && zip -r ../module.zip .
+    rm -rf target/module
+
+install-debug-magisk: package-debug
+    adb push target/aarch64-linux-android/debug/mist-poc /data/local/tmp
+    adb push target/module.zip /data/local/tmp
+    adb shell su -c magisk --install-module /data/local/tmp/module.zip
+
+install-release-magisk: package-release
+    adb push target/aarch64-linux-android/release/mist-poc /data/local/tmp
+    adb push target/module.zip /data/local/tmp
+    adb shell su -c magisk --install-module /data/local/tmp/module.zip
+
+clean:
+    cargo clean

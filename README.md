@@ -83,7 +83,7 @@ Status ServiceManager::listServices(int32_t dumpPriority,
 │   │       ├── selinux.rs     # SELinux 上下文操作
 │   │       ├── ext.rs         # 扩展函数
 │   │       └── properties.rs  # Android 系统属性读取
-│   ├── library/     # 被注入的 hook 库
+│   ├── trojan/      # 被注入的 hook 库
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs         # 动态库入口
@@ -107,7 +107,7 @@ Status ServiceManager::listServices(int32_t dumpPriority,
 Rust 项目采用 Cargo Workspace 组织，包含两个 crate：
 
 - **daemon**：可执行二进制，负责 ptrace 注入 servicemanager，并作为守护进程运行 Binder 服务
-- **library**：动态库（`libmist.so`），被注入到 servicemanager 进程后执行 hook 逻辑
+- **trojan**：动态库（`libmist.so`），被注入到 servicemanager 进程后执行 hook 逻辑
 
 ## 构建
 
