@@ -4,6 +4,7 @@ use anyhow::{Context, bail};
 use core::slice;
 use log::{LevelFilter, debug, error};
 use memmap2::Mmap;
+use mist_common::constants::{DUMP_FLAG_PRIORITY_HIDE, MIST_SERVICE_NAME};
 use nix::libc::{c_char, uid_t};
 use procfs::process::{MMapPath, MemoryMaps, Process};
 use r3solvr::{BasicResolver, Query, SymbolResolver};
@@ -15,7 +16,6 @@ use std::ptr;
 use std::sync::OnceLock;
 use uds::UnixSeqpacketConn;
 use wisp::{Wisp, orig_fn};
-use mist_common::constants::{DUMP_FLAG_PRIORITY_HIDE, MIST_SERVICE_NAME};
 
 pub const SERVICE_MANAGER_PATH: &str = "/system/bin/servicemanager";
 
@@ -145,13 +145,13 @@ extern "C" fn hook_action_allowed_from_lookup(
 
         #[cfg(debug_assertions)]
         debug!("Access::actionAllowedFromLookup: name = {name:?}");
-        
+
         // Todo: read uid from ctx?
         if let Some(uid) = get_calling_uid() {
             if name == MIST_SERVICE_NAME {
                 return uid == 0;
             }
-            
+
             if name.starts_with("mist/") && can_access(uid) {
                 debug!("Access::actionAllowedFromLookup: allow uid={uid}, name={name:?}");
                 return true;

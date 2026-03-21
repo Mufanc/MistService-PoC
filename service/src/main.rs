@@ -1,10 +1,12 @@
-use std::io::Write;
 use anyhow::bail;
 use clap::{Parser, Subcommand};
-use rsbinder::{hub, Binder, Interface, Parcel, ProcessState, Remotable, StatusCode, TransactionCode};
-use rsbinder::hub::{DUMP_FLAG_PRIORITY_ALL, DUMP_FLAG_PRIORITY_DEFAULT};
 use mist_common::binder::AddServiceEx;
 use mist_common::constants::DUMP_FLAG_PRIORITY_HIDE;
+use rsbinder::hub::{DUMP_FLAG_PRIORITY_ALL, DUMP_FLAG_PRIORITY_DEFAULT};
+use rsbinder::{
+    Binder, Interface, Parcel, ProcessState, Remotable, StatusCode, TransactionCode, hub,
+};
+use std::io::Write;
 
 const fn transaction_code(a: char, b: char, c: char) -> u32 {
     (('_' as u32) << 24) | ((a as u32) << 16) | ((b as u32) << 8) | (c as u32)
@@ -44,7 +46,12 @@ impl Remotable for SampleService {
         "xyz.mufanc.mist.sample"
     }
 
-    fn on_transact(&self, code: TransactionCode, _reader: &mut Parcel, reply: &mut Parcel) -> rsbinder::Result<()> {
+    fn on_transact(
+        &self,
+        code: TransactionCode,
+        _reader: &mut Parcel,
+        reply: &mut Parcel,
+    ) -> rsbinder::Result<()> {
         let mut success = false;
 
         if code == TRANSACTION_CODE_SAMPLE {
@@ -83,8 +90,18 @@ fn run_service() -> anyhow::Result<()> {
     let visible = Binder::new(SampleService);
     let hidden = Binder::new(SampleService);
 
-    hub::default().add_service("mist/sample_visible", visible.as_binder(), false, DUMP_FLAG_PRIORITY_DEFAULT)?;
-    hub::default().add_service("mist/sample_hidden", hidden.as_binder(), true, DUMP_FLAG_PRIORITY_HIDE)?;
+    hub::default().add_service(
+        "mist/sample_visible",
+        visible.as_binder(),
+        false,
+        DUMP_FLAG_PRIORITY_DEFAULT,
+    )?;
+    hub::default().add_service(
+        "mist/sample_hidden",
+        hidden.as_binder(),
+        true,
+        DUMP_FLAG_PRIORITY_HIDE,
+    )?;
 
     ProcessState::join_thread_pool()?;
     bail!("wtf??")

@@ -3,6 +3,7 @@ use crate::selinux::fsetcon;
 use anyhow::bail;
 use memmap2::MmapMut;
 use mist_common::binder::AddServiceEx;
+use mist_common::constants::{DUMP_FLAG_PRIORITY_HIDE, MIST_SERVICE_NAME};
 use rsbinder::{Interface, ProcessState, Status, StatusCode, hub};
 use std::convert::Into;
 use std::fs;
@@ -10,7 +11,6 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
-use mist_common::constants::{DUMP_FLAG_PRIORITY_HIDE, MIST_SERVICE_NAME};
 
 include!(concat!(env!("OUT_DIR"), "/mist.rs"));
 
