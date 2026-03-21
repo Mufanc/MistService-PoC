@@ -62,52 +62,58 @@ Status ServiceManager::listServices(int32_t dumpPriority,
 
 ## 工程结构
 
-本项目包含两个子工程：
+本项目是一个 Cargo Workspace，包含以下 crate：
 
 ```
 .
-├── mist/            # 服务隐藏模块（Rust Workspace，Magisk 模块）
-│   ├── Cargo.toml   # Workspace 配置
-│   ├── Cargo.lock
-│   ├── justfile     # 构建脚本
-│   ├── daemon/      # 注入器二进制
-│   │   ├── Cargo.toml
-│   │   ├── build.rs
-│   │   ├── interface/mist/IMistService.aidl  # Binder 服务接口
-│   │   └── src/
-│   │       ├── main.rs        # CLI 入口
-│   │       ├── daemon.rs      # Binder 服务与 idmap 管理
-│   │       ├── inject.rs      # ptrace 注入实现
-│   │       ├── ptrace.rs      # ptrace 操作封装
-│   │       ├── resolver.rs    # 符号解析
-│   │       ├── selinux.rs     # SELinux 上下文操作
-│   │       ├── ext.rs         # 扩展函数
-│   │       └── properties.rs  # Android 系统属性读取
-│   ├── trojan/      # 被注入的 hook 库
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs         # 动态库入口
-│   │       ├── hook.rs        # hook 逻辑（核心）
-│   │       ├── constants.rs   # 常量定义（隐藏标志位等）
-│   │       └── cxx_string.rs  # C++ 字符串支持
-│   ├── module/      # Magisk 模块模板
-│   │   ├── module.prop
-│   │   ├── post-fs-data.sh    # 注入启动脚本
-│   │   ├── customize.sh
-│   │   └── sepolicy.rule
-│   └── target/      # 构建产物
-├── service/         # 测试用服务（Kotlin, Android 工程）
-│   ├── app/         # 测试 APP，注册/列出服务
-│   └── hiddenapi/   # Hidden API stubs
-└── assets/
+├── Cargo.toml       # Workspace 配置
+├── Cargo.lock
+├── justfile         # 构建脚本
+├── common/          # 共享库（binder 工具、常量）
+│   ├── Cargo.toml
+│   └── src/
+│       ├── lib.rs
+│       ├── binder.rs      # ServiceManager 多版本兼容
+│       └── constants.rs   # 常量定义（隐藏标志位等）
+├── daemon/          # 注入器二进制
+│   ├── Cargo.toml
+│   ├── build.rs
+│   └── src/
+│       ├── main.rs        # CLI 入口
+│       ├── daemon.rs      # Binder 服务与 idmap 管理
+│       ├── inject.rs      # ptrace 注入实现
+│       ├── ptrace.rs      # ptrace 操作封装
+│       ├── resolver.rs    # 符号解析
+│       ├── selinux.rs     # SELinux 上下文操作
+│       ├── ext.rs         # 扩展函数
+│       └── properties.rs  # Android 系统属性读取
+├── trojan/          # 被注入的 hook 库
+│   ├── Cargo.toml
+│   └── src/
+│       ├── lib.rs         # 动态库入口
+│       ├── hook.rs        # hook 逻辑（核心）
+│       └── cxx_string.rs  # C++ 字符串支持
+├── service/         # 测试用服务（纯 Rust）
+│   ├── Cargo.toml
+│   └── src/
+│       └── main.rs        # mist-poc 测试工具
+├── module/          # Magisk 模块模板
+│   ├── module.prop
+│   ├── post-fs-data.sh    # 注入启动脚本
+│   ├── customize.sh
+│   ├── sepolicy.rule
+│   └── bin/
+└── target/          # 构建产物
 ```
 
 ### Workspace 结构
 
-Rust 项目采用 Cargo Workspace 组织，包含两个 crate：
+Rust 项目采用 Cargo Workspace 组织，包含四个 crate：
 
-- **daemon**：可执行二进制，负责 ptrace 注入 servicemanager，并作为守护进程运行 Binder 服务
+- **common**：共享库，提供多版本 ServiceManager 兼容接口和常量定义
+- **daemon**：可执行二进制（`mist`），负责 ptrace 注入 servicemanager，并作为守护进程运行 Binder 服务
 - **trojan**：动态库（`libmist.so`），被注入到 servicemanager 进程后执行 hook 逻辑
+- **service**：可执行二进制（`mist-poc`），测试用工具，用于注册/列出服务验证功能
 
 ## 构建
 
@@ -116,56 +122,73 @@ Rust 项目采用 Cargo Workspace 组织，包含两个 crate：
 - Android NDK（设置 `ANDROID_NDK` 环境变量）
 - Rust toolchain（需要 `aarch64-linux-android` target）
 - [just](https://github.com/casey/just) 命令行工具
-- Android SDK（用于构建 service 工程）
 
-### mist 模块
+### 添加 Rust target
 
 ```bash
-cd mist
-just package-release
-# 产物: mist/target/module.zip
+rustup target add aarch64-linux-android
 ```
 
-将 `module.zip` 通过 Magisk/KernelSU 刷入即可。
-
-### service 测试工程
+### 构建模块
 
 ```bash
-cd service
-./gradlew assembleDebug
-# 产物: app/build/outputs/apk/debug/app-debug.ash
+# 构建 debug 版本
+just build-debug
+
+# 构建 release 版本
+just build-release
+
+# 打包 Magisk 模块（debug）
+just package-debug
+
+# 打包 Magisk 模块（release）
+just package-release
+```
+
+将 `target/module.zip` 通过 Magisk/KernelSU 刷入即可。
+
+### 快速测试（开发模式）
+
+```bash
+# 直接注入测试（无需刷模块）
+just lite-inject
 ```
 
 ## 使用
 
-### 1. 刷入 mist 模块
+### 1. 刷入模块
 
 将构建好的 `module.zip` 刷入后重启，模块会在 `post-fs-data` 阶段通过 ptrace 将 hook 库注入到 `servicemanager` 进程，并启动 `mist` Binder 服务。
 
 ### 2. 注册测试服务
 
-将 `.ash` 文件推送到设备并执行（不带参数），会启动两个测试服务：
-- `mist_service_1`：普通服务，不带隐藏 flag
-- `mist_service_2`：隐藏服务，带上 `DUMP_FLAG_PRIORITY_HIDE`
+使用 `mist-poc` 工具注册测试服务：
 
 ```bash
-adb push app-debug.ash /data/local/tmp/mist.sh
-adb shell su -c /data/local/tmp/mist.sh
+# 推送到设备
+adb push target/aarch64-linux-android/debug/mist-poc /data/local/tmp
+
+# 启动测试服务
+adb shell su -c /data/local/tmp/mist-poc service
 ```
+
+这会启动两个测试服务：
+- `mist/sample_visible`：普通服务，不带隐藏 flag
+- `mist/sample_hidden`：隐藏服务，带上 `DUMP_FLAG_PRIORITY_HIDE`
 
 ### 3. 验证隐藏效果
 
-带 `list` 参数执行，会以特殊 flag 去 list servicemanager：
+使用 `list` 命令列出所有服务：
 
 ```bash
-# root 权限 —— 可以看到 mist_service_2
-adb shell su -c "/data/local/tmp/mist.sh list" | grep mist
+# root 权限 —— 可以看到隐藏服务
+adb shell su -c "/data/local/tmp/mist-poc list" | grep mist
 
-# shell 权限 —— mist_service_2 应当不可见
-adb shell "/data/local/tmp/mist.sh list" | grep mist
+# shell 权限 —— 隐藏服务应当不可见
+adb shell "/data/local/tmp/mist-poc list" | grep mist
 ```
 
-对比两者的输出，如果 mist 模块工作正常，shell 身份下应该看不到 `mist_service_2`。
+对比两者的输出，如果模块工作正常，shell 身份下应该看不到 `mist/sample_hidden`。
 
 ### 4. idmap 管理
 
@@ -194,4 +217,4 @@ adb shell su -c "/data/adb/modules/mist/bin/mist idmap clear"
 
 - 这是一个 PoC（概念验证），仅在 aarch64 架构上测试。
 - hook 依赖 [wisp](https://github.com/Mufanc/wisp) 和 [r3solvr](https://github.com/Mufanc/r3solvr) 两个库。
-- `IMistService` Binder 接口定义位于 `mist/daemon/interface/mist/IMistService.aidl`
+- `IMistService` Binder 接口通过 rsbinder-aidl 在构建时自动生成。
