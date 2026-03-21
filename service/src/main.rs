@@ -31,7 +31,7 @@ struct SampleService;
 
 impl Interface for SampleService {
     fn dump(&self, writer: &mut dyn Write, _args: &[String]) -> rsbinder::Result<()> {
-        let _ = writer.write("Hello from SampleService".as_bytes());
+        let _ = writer.write("Hello from SampleService\n".as_bytes());
         Ok(())
     }
 }

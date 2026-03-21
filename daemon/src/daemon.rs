@@ -41,7 +41,7 @@ fn validate_uid(uid: i32) -> rsbinder::status::Result<usize> {
 
 impl Interface for MistService {
     fn dump(&self, writer: &mut dyn Write, _args: &[String]) -> rsbinder::Result<()> {
-        let _ = writer.write("Hello, World!".as_bytes());
+        let _ = writer.write("Hello, World!\n".as_bytes());
         Ok(())
     }
 }
