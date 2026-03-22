@@ -3,8 +3,8 @@ use android_logger::Config;
 use anyhow::{Context, bail};
 use core::slice;
 use log::{LevelFilter, debug, error};
-use memmap2::Mmap;
 use mist_common::constants::{DUMP_FLAG_PRIORITY_HIDE, MIST_SERVICE_NAME};
+use mist_common::idmap::{IdmapReader, UID_MAX, UID_MIN};
 use nix::libc::{c_char, uid_t};
 use procfs::process::{MMapPath, MemoryMaps, Process};
 use r3solvr::{BasicResolver, Query, SymbolResolver};
@@ -12,7 +12,6 @@ use std::ffi::{c_long, c_void};
 use std::mem;
 use std::os::fd::{FromRawFd, OwnedFd, RawFd};
 use std::path::PathBuf;
-use std::ptr;
 use std::sync::OnceLock;
 use uds::UnixSeqpacketConn;
 use wisp::{Wisp, orig_fn};
@@ -24,7 +23,7 @@ static IPC_THREAD_STATE_SELF_OR_NULL: OnceLock<extern "C" fn() -> *const c_void>
 static IPC_THREAD_STATE_GET_CALLING_UID: OnceLock<extern "C" fn(handle: *const c_void) -> uid_t> =
     OnceLock::new();
 
-static IDMAP: OnceLock<Mmap> = OnceLock::new();
+static IDMAP: OnceLock<IdmapReader> = OnceLock::new();
 
 struct LibraryFinder {
     maps: MemoryMaps,
@@ -70,22 +69,17 @@ fn make_query(symbol: &'static str) -> Query<'static> {
 }
 
 fn can_access(uid: uid_t) -> bool {
-    if uid < 10000 {
+    if uid < UID_MIN {
         return true;
     }
 
-    if uid >= 20000 {
+    if uid >= UID_MAX {
         return false;
     }
 
-    if let Some(idmap) = IDMAP.get() {
-        let index = (uid - 10000) as usize;
-        let byte = unsafe { ptr::read_volatile(idmap.as_ptr().add(index >> 3)) };
-
-        byte & (1 << (index & 7)) != 0
-    } else {
-        false
-    }
+    IDMAP
+        .get()
+        .is_some_and(|idmap| idmap.get(uid).unwrap_or(false))
 }
 
 fn get_calling_uid() -> Option<uid_t> {
@@ -173,7 +167,7 @@ fn run_catching(seqpacket_fd: RawFd, library_fd: RawFd) -> anyhow::Result<()> {
     connection.recv_fds(&mut [], &mut fds)?;
 
     let idmap_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
-    let idmap = unsafe { Mmap::map(&idmap_fd)? };
+    let idmap = unsafe { IdmapReader::from_fd(&idmap_fd)? };
 
     IDMAP.get_or_init(|| idmap);
 

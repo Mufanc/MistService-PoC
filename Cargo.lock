@@ -397,7 +397,6 @@ dependencies = [
  "env_logger",
  "log",
  "memfd",
- "memmap2",
  "mist_common",
  "nix",
  "once_map",
@@ -816,6 +815,8 @@ dependencies = [
 name = "mist_common"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "memmap2",
  "paste",
  "rsbinder",
 ]
@@ -1513,7 +1514,6 @@ dependencies = [
  "android_logger",
  "anyhow",
  "log",
- "memmap2",
  "mist_common",
  "nix",
  "procfs",

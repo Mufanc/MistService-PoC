@@ -1,10 +1,10 @@
 use crate::daemon::mist::IMistService::{BnMistService, IMistService};
 use crate::selinux::fsetcon;
 use anyhow::bail;
-use memmap2::MmapMut;
 use mist_common::binder::AddServiceEx;
 use mist_common::constants::{DUMP_FLAG_PRIORITY_HIDE, MIST_SERVICE_NAME};
-use rsbinder::{Interface, ProcessState, Status, StatusCode, hub};
+use mist_common::idmap::{IDMAP_SIZE, IdmapWriter};
+use rsbinder::{Interface, ProcessState, StatusCode, hub};
 use std::convert::Into;
 use std::fs;
 use std::fs::File;
@@ -18,24 +18,16 @@ static MIST_IDMAP_DIR: LazyLock<PathBuf> = LazyLock::new(|| "/data/adb/mist".int
 static MIST_IDMAP_FILE: LazyLock<PathBuf> = LazyLock::new(|| MIST_IDMAP_DIR.join("idmap"));
 
 struct MistService {
-    idmap: Mutex<MmapMut>,
+    idmap: Mutex<IdmapWriter>,
 }
 
 impl MistService {
     fn new(idmap: File) -> anyhow::Result<Self> {
-        let mmap = unsafe { MmapMut::map_mut(&idmap)? };
+        let writer = unsafe { IdmapWriter::from_fd(&idmap)? };
 
         Ok(Self {
-            idmap: Mutex::new(mmap),
+            idmap: Mutex::new(writer),
         })
-    }
-}
-
-fn validate_uid(uid: i32) -> rsbinder::status::Result<usize> {
-    if (10000..20000).contains(&uid) {
-        Ok((uid - 10000) as usize)
-    } else {
-        Err(StatusCode::BadValue.into())
     }
 }
 
@@ -57,65 +49,26 @@ impl IMistService for MistService {
 
     fn idmapList(&self) -> rsbinder::status::Result<Vec<i32>> {
         let idmap = self.idmap.lock().unwrap();
-        let mut result = Vec::new();
-
-        for (byte_idx, &byte) in idmap.iter().enumerate() {
-            if byte == 0 {
-                continue;
-            }
-
-            for bit in 0..8u8 {
-                let index = byte_idx * 8 + bit as usize;
-
-                if index >= 10000 {
-                    break;
-                }
-
-                if byte & (1 << (bit & 7)) != 0 {
-                    result.push((index + 10000) as i32);
-                }
-            }
-        }
-
-        Ok(result)
+        Ok(idmap.get_all().into_iter().map(|uid| uid as i32).collect())
     }
 
     fn idmapGet(&self, id: i32) -> rsbinder::status::Result<bool> {
-        let index = validate_uid(id)?;
         let idmap = self.idmap.lock().unwrap();
-        let byte = idmap[index >> 3];
-
-        Ok(byte & (1 << (index & 7)) != 0)
+        idmap
+            .get(id as u32)
+            .ok_or_else(|| StatusCode::BadValue.into())
     }
 
     fn idmapSet(&self, id: i32, value: bool) -> rsbinder::status::Result<()> {
-        let index = validate_uid(id)?;
         let mut idmap = self.idmap.lock().unwrap();
-        let byte_index = index >> 3;
-        let bit_mask = 1u8 << (index & 7);
-
-        if value {
-            idmap[byte_index] |= bit_mask;
-        } else {
-            idmap[byte_index] &= !bit_mask;
-        }
-
         idmap
-            .flush()
-            .map_err(|_| Status::from(StatusCode::Unknown))?;
-
-        Ok(())
+            .set(id as u32, value)
+            .map_err(|_| StatusCode::Unknown.into())
     }
 
     fn idmapClear(&self) -> rsbinder::status::Result<()> {
         let mut idmap = self.idmap.lock().unwrap();
-
-        idmap.fill(0);
-        idmap
-            .flush()
-            .map_err(|_| Status::from(StatusCode::Unknown))?;
-
-        Ok(())
+        idmap.clear().map_err(|_| StatusCode::Unknown.into())
     }
 }
 
@@ -130,7 +83,7 @@ pub fn prepare_idmap() -> anyhow::Result<(File, File)> {
         .write(true)
         .open(&*MIST_IDMAP_FILE)?;
 
-    file_rw.set_len(1250)?;
+    file_rw.set_len(IDMAP_SIZE)?;
     fsetcon(&file_rw, "u:object_r:system_file:s0")?;
 
     let file_ro = File::options().read(true).open(&*MIST_IDMAP_FILE)?;

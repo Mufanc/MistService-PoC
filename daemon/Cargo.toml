@@ -16,7 +16,6 @@ mist_common = { path = "../common" }
 env_logger = { workspace = true }
 log = { workspace = true }
 memfd = { workspace = true }
-memmap2 = { workspace = true }
 nix = { workspace = true, features = ["ptrace", "signal", "socket", "uio"] }
 once_map = { workspace = true }
 procfs = { workspace = true }

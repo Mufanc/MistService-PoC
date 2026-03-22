@@ -12,7 +12,6 @@ android_logger = { workspace = true }
 anyhow = { workspace = true }
 mist_common = { path = "../common" }
 log = { workspace = true }
-memmap2 = { workspace = true }
 nix = { workspace = true }
 procfs = { workspace = true }
 r3solvr = { workspace = true }
