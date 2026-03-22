@@ -26,3 +26,19 @@ scopeguard = "1.2"
 syscalls = "0.8"
 uds = "0.4"
 wisp = { git = "https://github.com/Mufanc/wisp" }
+
+[profile.release]
+lto = true
+opt-level = "s"
+strip = true
+split-debuginfo = "packed"
+debug = "line-tables-only"
+
+[profile.release.package.daemon]
+codegen-units = 1
+
+[profile.release.package.trojan]
+codegen-units = 1
+
+[profile.release.package.service]
+codegen-units = 1

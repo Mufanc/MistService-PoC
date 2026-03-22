@@ -19,7 +19,6 @@ memfd = { workspace = true }
 memmap2 = { workspace = true }
 nix = { workspace = true, features = ["ptrace", "signal", "socket", "uio"] }
 once_map = { workspace = true }
-paste = { workspace = true }
 procfs = { workspace = true }
 r3solvr = { workspace = true }
 rsbinder = { workspace = true }

@@ -401,7 +401,6 @@ dependencies = [
  "mist_common",
  "nix",
  "once_map",
- "paste",
  "procfs",
  "r3solvr",
  "rsbinder",
