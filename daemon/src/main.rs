@@ -12,6 +12,8 @@ mod ptrace;
 mod resolver;
 mod selinux;
 
+use crate::daemon::IdmapCommands;
+
 #[derive(Parser)]
 #[command(disable_help_subcommand = true)]
 struct Cli {
@@ -31,26 +33,6 @@ enum Commands {
         #[command(subcommand)]
         command: IdmapCommands,
     },
-}
-
-#[derive(Subcommand)]
-enum IdmapCommands {
-    #[command(about = "List all enabled UIDs")]
-    List,
-    #[command(about = "Get idmap value for a UID")]
-    Get {
-        #[arg(help = "UID (10000-19999)")]
-        id: i32,
-    },
-    #[command(about = "Set idmap value for a UID")]
-    Set {
-        #[arg(help = "UID (10000-19999)")]
-        id: i32,
-        #[arg(action = clap::ArgAction::Set, help = "Enable or disable")]
-        value: bool,
-    },
-    #[command(about = "Clear all idmap entries")]
-    Clear,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -77,24 +59,9 @@ fn main() -> anyhow::Result<()> {
 
             daemon::run(idmap_rw)?;
         }
-        Commands::Idmap { command } => match command {
-            IdmapCommands::List => {
-                let list = daemon::idmap_list()?;
-                for id in list {
-                    println!("{id}");
-                }
-            }
-            IdmapCommands::Get { id } => {
-                let value = daemon::idmap_get(id)?;
-                println!("{value}");
-            }
-            IdmapCommands::Set { id, value } => {
-                daemon::idmap_set(id, value)?;
-            }
-            IdmapCommands::Clear => {
-                daemon::idmap_clear()?;
-            }
-        },
+        Commands::Idmap { command } => {
+            daemon::handle_idmap_command(command)?;
+        }
     }
 
     Ok(())

@@ -4,6 +4,7 @@ use anyhow::bail;
 use mist_common::binder::AddServiceEx;
 use mist_common::constants::{DUMP_FLAG_PRIORITY_HIDE, MIST_SERVICE_NAME};
 use mist_common::idmap::{IDMAP_SIZE, IdmapWriter};
+use clap::Subcommand;
 use rsbinder::{Interface, ProcessState, StatusCode, hub};
 use std::convert::Into;
 use std::fs;
@@ -72,7 +73,6 @@ impl IMistService for MistService {
     }
 }
 
-// Todo: extract idmap to standalone module in `mist_common`
 pub fn prepare_idmap() -> anyhow::Result<(File, File)> {
     fs::create_dir_all(&*MIST_IDMAP_DIR)?;
 
@@ -107,9 +107,27 @@ pub fn run(idmap: File) -> anyhow::Result<()> {
     bail!("wtf??")
 }
 
-// Todo: ↓↓↓ merge ALL THIS SHIT into one function ↓↓↓
+#[derive(Subcommand)]
+pub enum IdmapCommands {
+    #[command(about = "List all enabled UIDs")]
+    List,
+    #[command(about = "Get idmap value for a UID")]
+    Get {
+        #[arg(help = "UID (10000-19999)")]
+        id: i32,
+    },
+    #[command(about = "Set idmap value for a UID")]
+    Set {
+        #[arg(help = "UID (10000-19999)")]
+        id: i32,
+        #[arg(action = clap::ArgAction::Set, help = "Enable or disable")]
+        value: bool,
+    },
+    #[command(about = "Clear all idmap entries")]
+    Clear,
+}
 
-fn with_service<T>(func: impl FnOnce(&dyn IMistService) -> anyhow::Result<T>) -> anyhow::Result<T> {
+pub fn handle_idmap_command(command: IdmapCommands) -> anyhow::Result<()> {
     ProcessState::init_default();
 
     let service = match hub::get_interface::<dyn IMistService>(MIST_SERVICE_NAME) {
@@ -121,21 +139,24 @@ fn with_service<T>(func: impl FnOnce(&dyn IMistService) -> anyhow::Result<T>) ->
         bail!("Service is not responding")
     }
 
-    func(service.as_ref())
-}
+    match command {
+        IdmapCommands::List => {
+            let list = service.idmapList()?;
+            for id in list {
+                println!("{id}");
+            }
+        }
+        IdmapCommands::Get { id } => {
+            let value = service.idmapGet(id)?;
+            println!("{value}");
+        }
+        IdmapCommands::Set { id, value } => {
+            service.idmapSet(id, value)?;
+        }
+        IdmapCommands::Clear => {
+            service.idmapClear()?;
+        }
+    }
 
-pub fn idmap_list() -> anyhow::Result<Vec<i32>> {
-    with_service(|service| Ok(service.idmapList()?))
-}
-
-pub fn idmap_get(id: i32) -> anyhow::Result<bool> {
-    with_service(|service| Ok(service.idmapGet(id)?))
-}
-
-pub fn idmap_set(id: i32, value: bool) -> anyhow::Result<()> {
-    with_service(|service| Ok(service.idmapSet(id, value)?))
-}
-
-pub fn idmap_clear() -> anyhow::Result<()> {
-    with_service(|service| Ok(service.idmapClear()?))
+    Ok(())
 }
