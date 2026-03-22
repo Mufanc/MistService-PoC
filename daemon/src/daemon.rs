@@ -119,6 +119,7 @@ impl IMistService for MistService {
     }
 }
 
+// Todo: extract idmap to standalone module in `mist_common`
 pub fn prepare_idmap() -> anyhow::Result<(File, File)> {
     fs::create_dir_all(&*MIST_IDMAP_DIR)?;
 
@@ -152,6 +153,8 @@ pub fn run(idmap: File) -> anyhow::Result<()> {
     ProcessState::join_thread_pool()?;
     bail!("wtf??")
 }
+
+// Todo: ↓↓↓ merge ALL THIS SHIT into one function ↓↓↓
 
 fn with_service<T>(func: impl FnOnce(&dyn IMistService) -> anyhow::Result<T>) -> anyhow::Result<T> {
     ProcessState::init_default();

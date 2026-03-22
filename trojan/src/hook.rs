@@ -18,6 +18,7 @@ use uds::UnixSeqpacketConn;
 use wisp::{Wisp, orig_fn};
 
 pub const SERVICE_MANAGER_PATH: &str = "/system/bin/servicemanager";
+pub const MIST_SERVICE_PREFIX: &str = "mist/";
 
 static IPC_THREAD_STATE_SELF_OR_NULL: OnceLock<extern "C" fn() -> *const c_void> = OnceLock::new();
 static IPC_THREAD_STATE_GET_CALLING_UID: OnceLock<extern "C" fn(handle: *const c_void) -> uid_t> =
@@ -146,13 +147,12 @@ extern "C" fn hook_action_allowed_from_lookup(
         #[cfg(debug_assertions)]
         debug!("Access::actionAllowedFromLookup: name = {name:?}");
 
-        // Todo: read uid from ctx?
         if let Some(uid) = get_calling_uid() {
             if name == MIST_SERVICE_NAME {
                 return uid == 0;
             }
 
-            if name.starts_with("mist/") && can_access(uid) {
+            if name.starts_with(MIST_SERVICE_PREFIX) && can_access(uid) {
                 debug!("Access::actionAllowedFromLookup: allow uid={uid}, name={name:?}");
                 return true;
             }
