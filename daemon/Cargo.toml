@@ -23,6 +23,7 @@ r3solvr = { workspace = true }
 rsbinder = { workspace = true }
 scopeguard = { workspace = true }
 syscalls = { workspace = true }
+tokio = { workspace = true }
 uds = { workspace = true }
 
 [build-dependencies]

@@ -23,7 +23,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    #[command(about = "List all services registered in the service manager")]
+    #[command(about = "List all services registered in the service manager (with special flag)")]
     List,
     #[command(about = "Start the sample service and register it with the service manager")]
     Service,
@@ -110,6 +110,7 @@ fn run_service() -> anyhow::Result<()> {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
+    // Todo: add some simple tests
     match cli.command {
         Commands::List => {
             run_list()?;

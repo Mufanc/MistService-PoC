@@ -1,22 +1,28 @@
-use crate::daemon::mist::IMistService::{BnMistService, IMistService};
+use crate::daemon::mist::IMistService::{BnMistService, IMistService, IMistServiceAsyncService};
 use crate::selinux::fsetcon;
 use anyhow::bail;
 use mist_common::binder::AddServiceEx;
 use mist_common::constants::{DUMP_FLAG_PRIORITY_HIDE, MIST_SERVICE_NAME};
 use mist_common::idmap::{IDMAP_SIZE, IdmapWriter};
 use clap::Subcommand;
+use rsbinder::TokioRuntime;
 use rsbinder::{Interface, ProcessState, StatusCode, hub};
 use std::convert::Into;
-use std::fs;
+use std::{fs, future};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
+use tokio::runtime::Handle;
 
 include!(concat!(env!("OUT_DIR"), "/mist.rs"));
 
 static MIST_IDMAP_DIR: LazyLock<PathBuf> = LazyLock::new(|| "/data/adb/mist".into());
 static MIST_IDMAP_FILE: LazyLock<PathBuf> = LazyLock::new(|| MIST_IDMAP_DIR.join("idmap"));
+
+fn current_rt() -> TokioRuntime<Handle> {
+    TokioRuntime(Handle::current())
+}
 
 struct MistService {
     idmap: Mutex<IdmapWriter>,
@@ -40,7 +46,8 @@ impl Interface for MistService {
 }
 
 #[allow(non_snake_case)]
-impl IMistService for MistService {
+#[async_trait::async_trait]
+impl IMistServiceAsyncService for MistService {
     fn descriptor() -> &'static str
     where
         Self: Sized,
@@ -48,26 +55,26 @@ impl IMistService for MistService {
         "xyz.mufanc.IMistService"
     }
 
-    fn idmapList(&self) -> rsbinder::status::Result<Vec<i32>> {
+    async fn idmapList(&self) -> rsbinder::status::Result<Vec<i32>> {
         let idmap = self.idmap.lock().unwrap();
         Ok(idmap.get_all().into_iter().map(|uid| uid as i32).collect())
     }
 
-    fn idmapGet(&self, id: i32) -> rsbinder::status::Result<bool> {
+    async fn idmapGet(&self, id: i32) -> rsbinder::status::Result<bool> {
         let idmap = self.idmap.lock().unwrap();
         idmap
             .get(id as u32)
             .ok_or_else(|| StatusCode::BadValue.into())
     }
 
-    fn idmapSet(&self, id: i32, value: bool) -> rsbinder::status::Result<()> {
+    async fn idmapSet(&self, id: i32, value: bool) -> rsbinder::status::Result<()> {
         let mut idmap = self.idmap.lock().unwrap();
         idmap
             .set(id as u32, value)
             .map_err(|_| StatusCode::Unknown.into())
     }
 
-    fn idmapClear(&self) -> rsbinder::status::Result<()> {
+    async fn idmapClear(&self) -> rsbinder::status::Result<()> {
         let mut idmap = self.idmap.lock().unwrap();
         idmap.clear().map_err(|_| StatusCode::Unknown.into())
     }
@@ -91,11 +98,12 @@ pub fn prepare_idmap() -> anyhow::Result<(File, File)> {
     Ok((file_rw, file_ro))
 }
 
-pub fn run(idmap: File) -> anyhow::Result<()> {
+pub async fn run(idmap: File) -> anyhow::Result<()> {
     ProcessState::init_default();
     ProcessState::start_thread_pool();
 
-    let service = BnMistService::new_binder(MistService::new(idmap)?);
+    let service = BnMistService::new_async_binder(MistService::new(idmap)?, current_rt());
+
     hub::default().add_service(
         MIST_SERVICE_NAME,
         service.as_binder(),
@@ -103,7 +111,7 @@ pub fn run(idmap: File) -> anyhow::Result<()> {
         DUMP_FLAG_PRIORITY_HIDE,
     )?;
 
-    ProcessState::join_thread_pool()?;
+    future::pending::<()>().await;
     bail!("wtf??")
 }
 

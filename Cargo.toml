@@ -24,6 +24,7 @@ rsbinder = { version = "0.6", features = ["android_13", "android_14", "android_1
 rsbinder-aidl = "0.6"
 scopeguard = "1.2"
 syscalls = "0.8"
+tokio = { version = "1", features = ["rt", "macros"] }
 uds = "0.4"
 wisp = { git = "https://github.com/Mufanc/wisp" }
 

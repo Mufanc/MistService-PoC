@@ -57,7 +57,11 @@ fn main() -> anyhow::Result<()> {
                 inject::ptrace_inject(Pid::from_raw(pid), file, idmap_ro)?;
             }
 
-            daemon::run(idmap_rw)?;
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?;
+
+            rt.block_on(daemon::run(idmap_rw))?;
         }
         Commands::Idmap { command } => {
             daemon::handle_idmap_command(command)?;
